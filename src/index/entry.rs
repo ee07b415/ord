@@ -22,6 +22,7 @@ impl Entry for BlockHash {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct InscriptionEntry {
   pub(crate) fee: u64,
   pub(crate) height: u64,
@@ -31,6 +32,13 @@ pub(crate) struct InscriptionEntry {
 }
 
 pub(crate) type InscriptionEntryValue = (u64, u64, u64, u64, u32);
+
+
+impl InscriptionEntry {
+  pub fn to_string(&self) -> Result<String, serde_json::Error> {
+      serde_json::to_string(self)
+  }
+}
 
 impl Entry for InscriptionEntry {
   type Value = InscriptionEntryValue;
