@@ -156,16 +156,17 @@ impl Index {
     } else {
       data_dir.join("index.redb")
     };
-
+    log::info!("before db");
     let database = match unsafe { Database::builder().open_mmapped(&path) } {
       Ok(database) => {
+        log::info!("ok");
         let schema_version = database
           .begin_read()?
           .open_table(STATISTIC_TO_COUNT)?
           .get(&Statistic::Schema.key())?
           .map(|x| x.value())
           .unwrap_or(0);
-
+        log::info!("schema ok");
         match schema_version.cmp(&SCHEMA_VERSION) {
           cmp::Ordering::Less =>
             bail!(
@@ -180,7 +181,7 @@ impl Index {
           cmp::Ordering::Equal => {
           }
         }
-
+        
         database
       }
       Err(redb::Error::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
@@ -193,8 +194,9 @@ impl Index {
             })
             .create_mmapped(&path)?
         };
+        log::info!("db ok");
         let tx = database.begin_write()?;
-
+        log::info!("tx ok");
         #[cfg(test)]
         let tx = {
           let mut tx = tx;
@@ -214,21 +216,29 @@ impl Index {
 
         tx.open_table(STATISTIC_TO_COUNT)?
           .insert(&Statistic::Schema.key(), &SCHEMA_VERSION)?;
-
+        log::info!("open ok");
         if options.index_sats {
           tx.open_table(OUTPOINT_TO_SAT_RANGES)?
             .insert(&OutPoint::null().store(), [].as_slice())?;
+          log::info!("sat ok");
         }
 
         tx.commit()?;
-
+        log::info!("commit ok");
         database
       }
-      Err(error) => return Err(error.into()),
+      Err(error) => {
+          log::error!("Error opening the database: {:?}", error);
+          return Err(error.into());
+      }
     };
+
+    log::info!("after db");
 
     let genesis_block_coinbase_transaction =
       options.chain().genesis_block().coinbase().unwrap().clone();
+
+    log::info!("after transaction");
 
     Ok(Self {
       genesis_block_coinbase_txid: genesis_block_coinbase_transaction.txid(),

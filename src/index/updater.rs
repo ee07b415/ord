@@ -524,7 +524,16 @@ impl Updater {
       }
     } else {
       for (tx, txid) in block.txdata.iter().skip(1).chain(block.txdata.first()) {
+        let tx_start = Instant::now();
         lost_sats += inscription_updater.index_transaction_inscriptions(tx, *txid, None)?;
+        let cost = (Instant::now() - tx_start).as_millis();
+        if cost > 100 {
+          log::info!(
+            "prcocess {txid} with number {} in {} ms",
+            tx.input.len(),
+            (Instant::now() - tx_start).as_millis(),
+          );
+        }
       }
     }
 
