@@ -155,6 +155,7 @@ impl Server {
         .route("/input/:block/:transaction/:input", get(Self::input))
         .route("/inscription/:inscription_id", get(Self::inscription))
         .route("/inscriptions", get(Self::inscriptions))
+        .route("/owner/:inscription_id", get(Self::owner))
         .route("/inscription_entry/:inscription_id", get(Self::get_inscription_entry_by_inscription_id))
         .route("/inscriptions/:from", get(Self::inscriptions_from))
         .route("/install.sh", get(Self::install_script))
@@ -887,6 +888,19 @@ impl Server {
       .to_string();
 
       Ok(entry.unwrap())
+  }
+
+  async fn owner(
+    Extension(index): Extension<Arc<Index>>,
+    Path(inscription_id): Path<InscriptionId>,
+  ) -> ServerResult<String> {
+    index.update()?;
+    let entry = index
+      .get_inscription_satpoint_by_id(inscription_id)?
+      .ok_or_not_found(|| format!("inscription {inscription_id}"))?
+      .to_string();
+
+      Ok(entry)
   }
 
   async fn inscriptions_from(

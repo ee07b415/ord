@@ -74,11 +74,9 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
     input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
   ) -> Result<u64> {
     let mut inscriptions = Vec::new();
-
     let mut input_value = 0;
 
     for tx_in in &tx.input {
-      let tx_start = Instant::now();
       if tx_in.previous_output.is_null() {
         input_value += Height(self.height).subsidy();
       } else {
@@ -91,17 +89,13 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
             origin: Origin::Old(old_satpoint),
           });
         }
-        Self::log_timer("process inscription".to_owned(), tx_start);
-        let tx_start = Instant::now();
 
         if let Some(value) = self.value_cache.remove(&tx_in.previous_output) {
-          Self::log_timer("process remove cache location".to_owned(), tx_start);
           input_value += value
         } else if let Some(value) = self
           .outpoint_to_value
           .remove(&tx_in.previous_output.store())?
         {
-          Self::log_timer("process remove db location".to_owned(), tx_start);
           input_value += value.value()
         } else {
           input_value += self.value_receiver.blocking_recv().ok_or_else(|| {
@@ -110,12 +104,9 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
               tx_in.previous_output.txid
             )
           }).unwrap_or_default();
-          Self::log_timer("process remove reveiver location".to_owned(), tx_start);
         }
       }
     }
-
-    let start = Instant::now();
 
     if inscriptions.iter().all(|flotsam| flotsam.offset != 0)
       && Inscription::from_transaction(tx).is_some()
@@ -126,9 +117,6 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
         origin: Origin::New(input_value - tx.output.iter().map(|txout| txout.value).sum::<u64>()),
       });
     };
-
-    Self::log_timer("check new inscription".to_owned(), start);
-    let start = Instant::now();
 
     let is_coinbase = tx
       .input
@@ -178,9 +166,6 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
       );
     }
 
-    Self::log_timer("update inscription location".to_owned(), start);
-    let start = Instant::now();
-
     if is_coinbase {
       for flotsam in inscriptions {
         let new_satpoint = SatPoint {
@@ -189,7 +174,6 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
         };
         self.update_inscription_location(input_sat_ranges, flotsam, new_satpoint)?;
       }
-      Self::log_timer("update coinbase inscription location".to_owned(), start);
       Ok(self.reward - output_value)
     } else {
       self.flotsam.extend(inscriptions.map(|flotsam| Flotsam {
@@ -198,19 +182,6 @@ impl<'a, 'db, 'tx> InscriptionUpdater<'a, 'db, 'tx> {
       }));
       self.reward += input_value - output_value;
       Ok(0)
-    }
-  }
-  
-  fn log_timer(
-    step: String,
-    last_timer: Instant,
-  ) {
-    let cost: Duration = Instant::now() - last_timer;
-    if cost.as_millis() > 100 {
-      log::info!(
-        "prcocess {step} in {} ms",
-        cost.as_millis(),
-      );
     }
   }
 
